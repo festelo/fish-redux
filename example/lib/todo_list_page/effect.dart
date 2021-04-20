@@ -1,7 +1,6 @@
 import 'package:fish_redux/fish_redux.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Action, Page;
 
-import '../todo_edit_page/page.dart' as edit_page;
 import 'action.dart';
 import 'list_adapter/action.dart' as list_action;
 import 'state.dart';
@@ -41,10 +40,8 @@ void _init(Action action, Context<PageState> ctx) {
 
 void _onAdd(Action action, Context<PageState> ctx) {
   Navigator.of(ctx.context)
-      .push<ToDoState>(MaterialPageRoute<ToDoState>(
-          builder: (BuildContext buildCtx) =>
-              edit_page.TodoEditPage().buildPage(null)))
-      .then((ToDoState toDo) {
+      .pushNamed('todo_edit', arguments: null)
+      .then((dynamic toDo) {
     if (toDo != null &&
         (toDo.title?.isNotEmpty == true || toDo.desc?.isNotEmpty == true)) {
       ctx.dispatch(list_action.ToDoListActionCreator.add(toDo));

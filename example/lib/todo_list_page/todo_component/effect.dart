@@ -1,7 +1,6 @@
 import 'package:fish_redux/fish_redux.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Action, Page;
 
-import '../../todo_edit_page/page.dart' as edit_page;
 import 'action.dart';
 import 'state.dart';
 
@@ -15,10 +14,11 @@ Effect<ToDoState> buildEffect() {
 void _onEdit(Action action, Context<ToDoState> ctx) {
   if (action.payload == ctx.state.uniqueId) {
     Navigator.of(ctx.context)
-        .push<ToDoState>(MaterialPageRoute<ToDoState>(
-            builder: (BuildContext buildCtx) =>
-                edit_page.TodoEditPage().buildPage(ctx.state)))
-        .then((ToDoState toDo) {
+        // .push<ToDoState>(MaterialPageRoute<ToDoState>(
+        //     builder: (BuildContext buildCtx) =>
+        //         edit_page.TodoEditPage().buildPage(ctx.state)))
+        .pushNamed('todo_edit', arguments: ctx.state)
+        .then((dynamic toDo) {
       if (toDo != null) {
         ctx.dispatch(ToDoActionCreator.editAction(toDo));
       }

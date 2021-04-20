@@ -1,9 +1,10 @@
 import 'package:fish_redux/fish_redux.dart';
-import 'package:flutter/material.dart';
-import 'state.dart';
+import 'package:flutter/material.dart' hide Action, Page;
+
+import '../test_base.dart';
 import 'action.dart';
 import 'dynamic_flow_adapter.dart';
-import '../test_base.dart';
+import 'state.dart';
 
 Widget pageView(
   ToDoList state,
@@ -35,7 +36,7 @@ Widget pageView(
             },
             onLongPress: () {
               print('dispatch broadcast');
-              viewService.pageBroadcast(const Action(ToDoAction.broadcast));
+              viewService.broadcastEffect(const Action(ToDoAction.broadcast));
             },
           )),
         ],
@@ -76,7 +77,7 @@ const Map<String, dynamic> pageInitParams = <String, dynamic>{
 bool pageEffect(Action action, Context<ToDoList> ctx) {
   if (action.type == PageAction.onAdd) {
     print('page onAdd');
-    ctx.pageBroadcast(Action(ToDoListAction.onAdd, payload: Todo.mock()));
+    ctx.broadcastEffect(Action(ToDoListAction.onAdd, payload: Todo.mock()));
     return true;
   }
 
@@ -90,6 +91,7 @@ Widget createDynamicAdapterWidget(BuildContext context) {
           view: pageView,
           initState: initState,
           effect: pageEffect,
-          dependencies: Dependencies<ToDoList>(adapter: testAdapter))
+          dependencies: Dependencies<ToDoList>(
+              adapter: NoneConn<ToDoList>() + testAdapter))
       .buildPage(pageInitParams);
 }

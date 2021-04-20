@@ -1,5 +1,5 @@
 import 'package:fish_redux/fish_redux.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Action, Page;
 
 import 'action.dart';
 import 'state.dart';
@@ -84,7 +84,7 @@ bool toDoEffect(Action action, Context<Todo> ctx) {
     ctx.dispatch(Action(ToDoAction.edit, payload: toDo));
     return true;
   } else if (action.type == ToDoAction.onBroadcast) {
-    ctx.pageBroadcast(Action(ToDoAction.broadcast));
+    ctx.broadcastEffect(Action(ToDoAction.broadcast));
     return true;
   }
 
@@ -99,7 +99,7 @@ dynamic toDoEffectAsync(Action action, Context<Todo> ctx) {
   return null;
 }
 
-OnAction toDoHigherEffect(Context<Todo> ctx) =>
+Dispatch toDoHigherEffect(Context<Todo> ctx) =>
     (Action action) => toDoEffect(action, ctx);
 
 Todo toDoReducer(Todo state, Action action) {

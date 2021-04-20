@@ -16,12 +16,14 @@ class ToDoListPage extends Page<PageState, Map<String, dynamic>> {
           reducer: buildReducer(),
           view: buildView,
           dependencies: Dependencies<PageState>(
-              adapter: ToDoListAdapter(),
+              adapter: NoneConn<PageState>() + ToDoListAdapter(),
               slots: <String, Dependent<PageState>>{
                 'report': ReportConnector() + ReportComponent()
               }),
-          middleware: <Middleware<PageState>>[
-            logMiddleware(tag: 'ToDoListPage'),
-          ],
+
+          /// 页面私有AOP, 如果需要
+          // middleware: <Middleware<PageState>>[
+          //   logMiddleware(tag: 'ToDoListPage'),
+          // ],
         );
 }

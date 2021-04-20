@@ -1,60 +1,80 @@
-import 'dart:async';
+import 'package:flutter/widgets.dart' hide Action, Page;
 
-import 'package:flutter/widgets.dart';
-
-import '../../fish_redux.dart';
 import '../redux/redux.dart';
+import '../utils/utils.dart';
 import 'basic.dart';
-import 'context.dart';
 import 'dependencies.dart';
-import 'dependent.dart';
-import 'helper.dart';
+import 'helper.dart' as helper;
 
 /// Four parts
 /// 1. Reducer & ReducerFilter
-/// 2. Effect | HigherEffect & OnError   =>   OnAction
+/// 2. Effect
 /// 3. Dependencies
 /// 4. Key
-class Logic<T> implements AbstractLogic<T> {
+abstract class Logic<T> implements AbstractLogic<T> {
   final Reducer<T> _reducer;
-  final ReducerFilter<T> filter;
-  final HigherEffect<T> higherEffect;
-  final OnError<T> onError;
-  final Dependencies<T> dependencies;
+  final ReducerFilter<T> _filter;
+  final Effect<T> _effect;
+  final Dependencies<T> _dependencies;
   final Object Function(T state) _key;
+
+  /// for extends
+  Reducer<T> get protectedReducer => _reducer;
+  ReducerFilter<T> get protectedFilter => _filter;
+  Effect<T> get protectedEffect => _effect;
+  Dependencies<T> get protectedDependencies => _dependencies;
+  Object Function(T state) get protectedKey => _key;
 
   /// Used as function cache to improve operational efficiency
   final Map<String, Object> _resultCache = <String, Object>{};
 
   Logic({
     Reducer<T> reducer,
-    this.dependencies,
-    this.filter,
+    Dependencies<T> dependencies,
+    ReducerFilter<T> filter,
     Effect<T> effect,
-    HigherEffect<T> higherEffect,
-    this.onError,
-    Object Function(T state) key,
-  })  : assert(effect == null || higherEffect == null,
-            'Only one style of effect could be applied.'),
-        _reducer = reducer,
-        higherEffect = higherEffect ?? asHigherEffect(effect),
-        _key = key;
+
+    /// implement [StateKey] in T instead of using key in Logic.
+    /// class T implements StateKey {
+    ///   Object _key = UniqueKey();
+    ///   Object key() => _key;
+    /// }
+    @deprecated Object Function(T state) key,
+  })  : _reducer = reducer,
+        _filter = filter,
+        _effect = effect,
+        _dependencies = dependencies?.trim(),
+        // ignore:deprecated_member_use_from_same_package
+        assert(isAssignFrom<T, StateKey>() == false || key == null,
+            'Implements [StateKey] in T instead of using key in Logic.'),
+        _key = isAssignFrom<T, StateKey>()
+            // ignore:avoid_as
+            ? ((T state) => (state as StateKey).key())
+            // ignore:deprecated_member_use_from_same_package
+            : key;
+
+  @override
+  Type get propertyType => T;
+
+  bool isSuperTypeof<K>() => Tuple0<K>() is Tuple0<T>;
+
+  bool isTypeof<K>() => Tuple0<T>() is Tuple0<K>;
+
+  static bool isAssignFrom<P, Q>() => Tuple0<P>() is Tuple0<Q>;
 
   /// if
   /// _resultCache['key'] = null;
   /// then
   /// _resultCache.containsKey('key') will be true;
-  R cache<R>(String key, Get<R> getter) {
-    final R result = _resultCache.containsKey(key)
-        ? _resultCache[key]
-        : (_resultCache[key] = getter());
-    return result;
-  }
+  R cache<R>(String key, Get<R> getter) => _resultCache.containsKey(key)
+      ? _resultCache[key]
+      : (_resultCache[key] = getter());
 
   @override
-  Reducer<T> get reducer => filterReducer(
-      combineReducers<T>(<Reducer<T>>[_reducer, dependencies?.reducer]),
-      filter);
+  Reducer<T> get reducer => helper.filterReducer(
+      combineReducers<T>(
+          <Reducer<T>>[protectedReducer, protectedDependencies?.reducer]),
+      protectedFilter);
 
   @override
   Object onReducer(Object state, Action action) =>
@@ -62,118 +82,36 @@ class Logic<T> implements AbstractLogic<T> {
       state;
 
   @override
-  OnAction createHandlerOnAction(Context<T> ctx) {
-    final OnAction onEffect = higherEffect?.call(ctx);
-    return onEffect != null
-        ? (Action action) {
-            assert(action != null, 'Do not dispatch an action of null.');
-            try {
-              final Object result = onEffect(action);
-              if (result is Future) {
-                return result.catchError((Object e) {
-                  if (!_onError(onError, e, ctx)) {
-                    throw e;
-                  }
-                });
-              } else {
-                return result;
-              }
-            } catch (e) {
-              if (!_onError(onError, e, ctx)) {
-                rethrow;
-              } else {
-                return true;
-              }
-            }
-          }
-        : null;
+  Dispatch createEffectDispatch(ContextSys<T> ctx, Enhancer<Object> enhancer) {
+    return helper.createEffectDispatch<T>(
+
+        /// enhance userEffect
+        enhancer.effectEnhance(
+          protectedEffect,
+          this,
+          ctx.store,
+        ),
+        ctx);
   }
 
   @override
-  OnAction createHandlerOnBroadcast(
-          OnAction onAction, Context<T> ctx, Dispatch parentDispatch) =>
-      onAction;
+  Dispatch createNextDispatch(ContextSys<T> ctx, Enhancer<Object> enhancer) =>
+      helper.createNextDispatch<T>(ctx);
 
   @override
   Dispatch createDispatch(
-      OnAction onAction, Context<T> ctx, Dispatch parentDispatch) {
-    Dispatch dispatch = (Action action) {
-      throw Exception(
-          'Dispatching while appending your effect & onError to dispatch is not allowed.');
-    };
-
-    /// attach to store.dispatch
-    dispatch = _applyOnAction<T>(onAction, ctx)(
-      dispatch: (Action action) => dispatch(action),
-      getState: () => ctx.state,
-    )(parentDispatch);
-    return dispatch;
-  }
-
-  @override
-  Dependent<T> slot(String type) => dependencies?.slot(type);
-
-  @override
-  Dependent<K> asDependent<K>(AbstractConnector<K, T> connector) =>
-      createDependent<K, T>(connector, this);
-
-  @override
-  ContextSys<T> createContext({
-    PageStore<Object> store,
-    BuildContext buildContext,
-    Get<T> getState,
-  }) {
-    return DefaultContext<T>(
-      factors: this,
-      store: store,
-      buildContext: buildContext,
-      getState: getState,
-    );
-  }
+    Dispatch effectDispatch,
+    Dispatch nextDispatch,
+    Context<T> ctx,
+  ) =>
+      helper.createDispatch<T>(effectDispatch, nextDispatch, ctx);
 
   @override
   Object key(T state) => _key?.call(state) ?? ValueKey<Type>(runtimeType);
 
-  static bool _onError<T>(OnError<T> onError, Object e, Context<T> ctx) {
-    return (e is SelfHealingError ? e.heal(ctx) : onError?.call(e, ctx)) ??
-        false;
-  }
-
-  static Middleware<T> _applyOnAction<T>(OnAction onAction, Context<T> ctx) {
-    return ({Dispatch dispatch, Get<T> getState}) {
-      return (Dispatch next) {
-        return (Action action) {
-          final Object result = onAction?.call(action);
-          if (result != null && result != false) {
-            return;
-          }
-
-          //skip-lifecycle-actions
-          if (action.type is Lifecycle) {
-            return;
-          }
-
-          if (!shouldBeInterruptedBeforeReducer(action)) {
-            ctx.pageBroadcast(action);
-          }
-
-          next(action);
-        };
-      };
-    };
-  }
-}
-
-/// if an exception is of SelfHealingError type, it will be healed automatically.
-abstract class SelfHealingError {
-  bool heal(Context<Object> ctx);
-}
-
-class DisposeException implements Exception, SelfHealingError {
-  final String message;
-
-  const DisposeException([this.message]);
+  @override
+  Dependent<T> slot(String type) => protectedDependencies?.slot(type);
 
   @override
-  bool heal(Context<Object> ctx) => true;
+  Dependent<T> adapterDep() => protectedDependencies?.adapter;
 }

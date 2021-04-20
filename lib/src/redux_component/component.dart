@@ -1,108 +1,126 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/widgets.dart' hide Action, Page;
 
-import '../../fish_redux.dart';
-import '../redux/redux.dart';
-import '../utils/utils.dart';
+import '../redux/basic.dart';
 import 'basic.dart';
 import 'context.dart';
-import 'debug_or_report.dart';
 import 'dependencies.dart';
 import 'lifecycle.dart';
 import 'logic.dart';
-import 'page_store.dart';
-import 'provider.dart';
 
 /// Wrapper ComponentWidget if needed like KeepAlive, RepaintBoundary etc.
 typedef WidgetWrapper = Widget Function(Widget child);
 
 @immutable
 abstract class Component<T> extends Logic<T> implements AbstractComponent<T> {
-  final ViewBuilder<T> view;
-  final ShouldUpdate<T> shouldUpdate;
-  final WidgetWrapper wrapper;
+  final ViewBuilder<T> _view;
+  final ShouldUpdate<T> _shouldUpdate;
+  final WidgetWrapper _wrapper;
+  final bool _clearOnDependenciesChanged;
+
+  ViewBuilder<T> get protectedView => _view;
+  ShouldUpdate<T> get protectedShouldUpdate => _shouldUpdate;
+  WidgetWrapper get protectedWrapper => _wrapper;
+  bool get protectedClearOnDependenciesChanged => _clearOnDependenciesChanged;
 
   Component({
-    @required this.view,
+    @required ViewBuilder<T> view,
     Reducer<T> reducer,
     ReducerFilter<T> filter,
     Effect<T> effect,
-    HigherEffect<T> higherEffect,
-    OnError<T> onError,
     Dependencies<T> dependencies,
     ShouldUpdate<T> shouldUpdate,
     WidgetWrapper wrapper,
-    Key Function(T) key,
+
+    /// implement [StateKey] in T instead of using key in Logic.
+    /// class T implements StateKey {
+    ///   Object _key = UniqueKey();
+    ///   Object key() => _key;
+    /// }
+    @deprecated Key Function(T) key,
+    bool clearOnDependenciesChanged = false,
   })  : assert(view != null),
-        wrapper = wrapper ?? _wrapperByDefault,
-        shouldUpdate = shouldUpdate ?? updateByDefault<T>(),
+        _view = view,
+        _wrapper = wrapper ?? _wrapperByDefault,
+        _shouldUpdate = shouldUpdate ?? updateByDefault<T>(),
+        _clearOnDependenciesChanged = clearOnDependenciesChanged,
         super(
           reducer: reducer,
           filter: filter,
           effect: effect,
-          higherEffect: higherEffect,
-          onError: onError,
           dependencies: dependencies,
+          // ignore:deprecated_member_use_from_same_package
           key: key,
         );
 
   @override
-  Widget buildComponent(PageStore<Object> store, Get<Object> getter) {
-    return wrapper(
-      ComponentWidget<T>(
-        component: this,
-        getter: _asGetter<T>(getter),
-        store: store,
-        key: key(getter()),
-      ),
-    );
-  }
-
-  ViewBuilder<T> createViewBuilder() {
-    return isDebug()
-        ? view
-        : (T state, Dispatch dispatch, ViewService viewService) {
-            Widget result;
-            try {
-              result = view(state, dispatch, viewService);
-            } catch (e, stackTrace) {
-              /// the upper layer decides how to consume the error.
-              dispatch($DebugOrReportCreator.reportBuildError(e, stackTrace));
-              result = Container();
-            }
-            return result;
-          };
-  }
-
-  @override
-  ViewUpdater<T> createViewUpdater(T init) =>
-      _ViewUpdater<T>(createViewBuilder(), shouldUpdate, name, init);
-
-  @override
-  ContextSys<T> createContext({
-    PageStore<Object> store,
-    BuildContext buildContext,
-    Get<T> getState,
+  Widget buildComponent(
+    Store<Object> store,
+    Get<Object> getter, {
+    @required DispatchBus bus,
+    @required Enhancer<Object> enhancer,
   }) {
-    /// init context
-    final ContextSys<T> mainCtx = super.createContext(
+    /// Check bus: DispatchBusDefault(); enhancer: EnhancerDefault<Object>();
+    assert(bus != null && enhancer != null);
+
+    return protectedWrapper(
+      isPureView()
+          ? _PureViewWidget<T>(
+              store: store,
+              viewBuilder: enhancer.viewEnhance(protectedView, this, store),
+              getter: getter,
+              bus: bus,
+            )
+          : ComponentWidget<T>(
+              component: this,
+              getter: _asGetter<T>(getter),
+              store: store,
+              key: key(getter()),
+              bus: bus,
+              enhancer: enhancer,
+            ),
+    );
+  }
+
+  @override
+  ComponentContext<T> createContext(
+    Store<Object> store,
+    BuildContext buildContext,
+    Get<T> getState, {
+    @required void Function() markNeedsBuild,
+    @required DispatchBus bus,
+    @required Enhancer<Object> enhancer,
+  }) {
+    assert(bus != null && enhancer != null);
+    return ComponentContext<T>(
+      logic: this,
       store: store,
       buildContext: buildContext,
       getState: getState,
+      view: enhancer.viewEnhance(protectedView, this, store),
+      shouldUpdate: protectedShouldUpdate,
+      name: name,
+      markNeedsBuild: markNeedsBuild,
+      sidecarCtx: adapterDep()?.createContext(
+        store,
+        buildContext,
+        getState,
+        bus: bus,
+        enhancer: enhancer,
+      ),
+      enhancer: enhancer,
+      bus: bus,
     );
-
-    final ContextSys<T> sidecarCtx = dependencies?.adapter?.createContext(
-      store: store,
-      buildContext: buildContext,
-      getState: getState,
-    );
-
-    /// adapter-effect-promote
-    return mergeContext(mainCtx, sidecarCtx);
   }
 
   ComponentState<T> createState() => ComponentState<T>();
 
   String get name => cache<String>('name', () => runtimeType.toString());
+
+  bool isPureView() {
+    return protectedReducer == null &&
+        protectedEffect == null &&
+        protectedDependencies == null;
+  }
 
   static ShouldUpdate<K> neverUpdate<K>() => (K _, K __) => false;
 
@@ -127,65 +145,43 @@ abstract class Component<T> extends Logic<T> implements AbstractComponent<T> {
   }
 }
 
-class _ViewUpdater<T> implements ViewUpdater<T> {
-  final ViewBuilder<T> view;
-  final ShouldUpdate<T> shouldUpdate;
-  final String name;
+class _PureViewWidget<T> extends StatelessWidget {
+  final ViewBuilder<T> viewBuilder;
+  final Get<Object> getter;
+  final DispatchBus bus;
+  final Store<Object> store;
 
-  Widget _widgetCache;
-  T _latestState;
-
-  _ViewUpdater(this.view, this.shouldUpdate, this.name, this._latestState)
-      : assert(view != null),
-        assert(shouldUpdate != null);
-
-  @override
-  Widget buildView(T state, Dispatch dispatch, ViewService viewService) {
-    if (_widgetCache == null) {
-      _widgetCache = view(state, dispatch, viewService);
-
-      dispatch(LifecycleCreator.build());
-
-      /// to watch component's update in debug-mode
-      assert(() {
-        dispatch($DebugOrReportCreator.debugUpdate(name));
-        return true;
-      }());
-    }
-    return _widgetCache;
-  }
+  const _PureViewWidget({
+    @required this.viewBuilder,
+    @required this.getter,
+    @required this.bus,
+    @required this.store,
+  });
 
   @override
-  void onNotify(T now, void Function() markNeedsBuild, Dispatch dispatch) {
-    if (shouldUpdate(_latestState, now)) {
-      _widgetCache = null;
-      try {
-        markNeedsBuild();
-      } on FlutterError catch (e) {
-        /// 应该区分不同模式下的处理策略？
-        dispatch(
-            $DebugOrReportCreator.reportSetStateError(e, StackTrace.current));
-      }
-
-      _latestState = now;
-    }
-  }
-
-  @override
-  void reassemble() {
-    _widgetCache = null;
-  }
+  Widget build(BuildContext context) => viewBuilder(
+        getter(),
+        (Action action) {
+          store.dispatch(action);
+          bus.dispatch(action);
+        },
+        PureViewViewService(bus, context),
+      );
 }
 
 class ComponentWidget<T> extends StatefulWidget {
   final Component<T> component;
-  final PageStore<Object> store;
+  final Store<Object> store;
   final Get<T> getter;
+  final DispatchBus bus;
+  final Enhancer<Object> enhancer;
 
   const ComponentWidget({
     @required this.component,
     @required this.store,
     @required this.getter,
+    this.bus,
+    this.enhancer,
     Key key,
   })  : assert(component != null),
         assert(store != null),
@@ -197,193 +193,88 @@ class ComponentWidget<T> extends StatefulWidget {
 }
 
 class ComponentState<T> extends State<ComponentWidget<T>> {
-  ContextSys<T> _mainCtx;
-  ViewUpdater<T> _viewUpdater;
+  ComponentContext<T> _ctx;
 
+  ComponentContext<T> get ctx => _ctx;
+
+  @mustCallSuper
   @override
-  Widget build(BuildContext context) =>
-      _viewUpdater.buildView(_mainCtx.state, _mainCtx.dispatch, _mainCtx);
+  Widget build(BuildContext context) => _ctx.buildWidget();
 
   @override
   @protected
   @mustCallSuper
   void reassemble() {
     super.reassemble();
-    _viewUpdater.reassemble();
+    _ctx.clearCache();
+    _ctx.onLifecycle(LifecycleCreator.reassemble());
   }
 
+  @mustCallSuper
   @override
   void initState() {
     super.initState();
 
     /// init context
-    _mainCtx = widget.component.createContext(
-      store: widget.store,
-      buildContext: context,
-      getState: () => widget.getter(),
+    _ctx = widget.component.createContext(
+      widget.store,
+      context,
+      () => widget.getter(),
+      markNeedsBuild: () {
+        if (mounted) {
+          setState(() {});
+        }
+      },
+      bus: widget.bus,
+      enhancer: widget.enhancer,
     );
 
-    _viewUpdater = widget.component.createViewUpdater(_mainCtx.state);
-
     /// register store.subscribe
-    _mainCtx
-      ..registerOnDisposed(widget.store.subscribe(_onNotify))
-      ..onLifecycle(LifecycleCreator.initState());
+    _ctx.registerOnDisposed(widget.store.subscribe(() => _ctx.onNotify()));
+
+    _ctx.onLifecycle(LifecycleCreator.initState());
   }
 
+  @mustCallSuper
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _mainCtx.onLifecycle(LifecycleCreator.didChangeDependencies());
+
+    if (widget.component.protectedClearOnDependenciesChanged != false) {
+      _ctx.clearCache();
+    }
+
+    _ctx.onLifecycle(LifecycleCreator.didChangeDependencies());
   }
 
+  @mustCallSuper
   @override
   void deactivate() {
     super.deactivate();
-    _mainCtx.onLifecycle(LifecycleCreator.deactivate());
+    _ctx.onLifecycle(LifecycleCreator.deactivate());
   }
 
+  @mustCallSuper
   @override
   void didUpdateWidget(ComponentWidget<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _onNotify();
-    _mainCtx.onLifecycle(LifecycleCreator.didUpdateWidget());
+    _ctx.didUpdateWidget();
+    _ctx.onLifecycle(LifecycleCreator.didUpdateWidget());
   }
 
+  @mustCallSuper
+  void disposeCtx() {
+    if (!_ctx.isDisposed) {
+      _ctx
+        ..onLifecycle(LifecycleCreator.dispose())
+        ..dispose();
+    }
+  }
+
+  @mustCallSuper
   @override
   void dispose() {
-    _mainCtx
-      ..onLifecycle(LifecycleCreator.dispose())
-      ..dispose();
-    super.dispose();
-  }
-
-  void _onNotify() {
-    _viewUpdater.onNotify(_mainCtx.state, () {
-      if (mounted) {
-        setState(() {});
-      }
-    }, _mainCtx.dispatch);
-  }
-}
-
-/// init store's state by route-params
-typedef InitState<T, P> = T Function(P params);
-
-@immutable
-abstract class Page<T, P> extends Component<T> {
-  final List<Middleware<T>> middleware;
-  final InitState<T, P> initState;
-
-  Page({
-    @required this.initState,
-    this.middleware,
-    @required ViewBuilder<T> view,
-    Reducer<T> reducer,
-    ReducerFilter<T> filter,
-    Effect<T> effect,
-    HigherEffect<T> higherEffect,
-    OnError<T> onError,
-    Dependencies<T> dependencies,
-    ShouldUpdate<T> shouldUpdate,
-    WidgetWrapper wrapper,
-    Key Function(T) key,
-  })  : assert(initState != null),
-        super(
-          view: view,
-          dependencies: dependencies,
-          reducer: reducer,
-          filter: filter,
-          effect: effect,
-          higherEffect: higherEffect,
-          onError: onError,
-          shouldUpdate: shouldUpdate,
-          wrapper: wrapper,
-          key: key,
-        );
-
-  /// Expansion capability
-  List<Middleware<T>> buildMiddleware(List<Middleware<T>> middleware) {
-    return Collections.merge<Middleware<T>>(
-        <Middleware<T>>[interrupt$<T>()], middleware);
-  }
-
-  Widget buildPage(P param) {
-    return wrapper(_PageWidget<T>(
-      component: this,
-      storeBuilder: () => createPageStore<T>(
-            initState(param),
-            reducer,
-            applyMiddleware<T>(buildMiddleware(middleware)),
-          ),
-    ));
-  }
-
-  static Middleware<T> interrupt$<T>() {
-    return ({Dispatch dispatch, Get<T> getState}) {
-      return (Dispatch next) {
-        return (Action action) {
-          if (!shouldBeInterruptedBeforeReducer(action)) {
-            next(action);
-          }
-        };
-      };
-    };
-  }
-}
-
-class _PageWidget<T> extends StatefulWidget {
-  final Component<T> component;
-  final Get<PageStore<T>> storeBuilder;
-
-  const _PageWidget({
-    Key key,
-    @required this.component,
-    @required this.storeBuilder,
-  }) : super(key: key);
-
-  @override
-  State<StatefulWidget> createState() => _PageState<T>();
-}
-
-class _PageState<T> extends State<_PageWidget<T>> {
-  PageStore<T> _store;
-  final Map<String, Object> extra = <String, Object>{};
-
-  void Function() unregister;
-
-  @override
-  void initState() {
-    super.initState();
-    _store = widget.storeBuilder();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    /// Register inter-page broadcast
-    unregister?.call();
-    unregister = AppProvider.register(context, (Action action) {
-      _store.sendBroadcast(action);
-      _store.dispatch(action);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return PageProvider(
-      store: _store,
-      extra: extra,
-      child: widget.component.buildComponent(_store, _store.getState),
-    );
-  }
-
-  @override
-  void dispose() {
-    unregister?.call();
-    unregister = null;
-    _store.teardown();
+    disposeCtx();
     super.dispose();
   }
 }

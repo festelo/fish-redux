@@ -1,5 +1,5 @@
 import 'package:fish_redux/fish_redux.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Action, Page;
 
 import '../test_base.dart';
 import 'adapter.dart';
@@ -63,9 +63,10 @@ Widget createAdapterWidget(BuildContext context) {
           initState: initState,
           view: pageView,
           dependencies: Dependencies<ToDoList>(
-              adapter: TestAdapter<ToDoList>(
-                  adapter: toDoListAdapter,
-                  reducer: toDoListReducer,
-                  effect: toDoListEffect)))
+              adapter: NoneConn<ToDoList>() +
+                  TestAdapter<ToDoList>(
+                      adapter: toDoListAdapter,
+                      reducer: toDoListReducer,
+                      effect: toDoListEffect)))
       .buildPage(pageInitParams);
 }

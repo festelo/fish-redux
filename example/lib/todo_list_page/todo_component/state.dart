@@ -1,4 +1,5 @@
 import 'package:fish_redux/fish_redux.dart';
+// import 'package:uuid/uuid.dart';
 
 class ToDoState implements Cloneable<ToDoState> {
   String uniqueId;
@@ -6,8 +7,10 @@ class ToDoState implements Cloneable<ToDoState> {
   String desc;
   bool isDone;
 
+  static int _seed = 202103051044;
+
   ToDoState({this.uniqueId, this.title, this.desc, this.isDone = false}) {
-    uniqueId ??= DateTime.now().toIso8601String();
+    uniqueId ??= '${_seed++}';
   }
 
   @override

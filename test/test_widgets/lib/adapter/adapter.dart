@@ -1,5 +1,5 @@
 import 'package:fish_redux/fish_redux.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Action, Page;
 
 import 'action.dart';
 import 'state.dart';
@@ -109,7 +109,7 @@ dynamic toDoListEffectAsync(Action action, Context<ToDoList> ctx) {
   return null;
 }
 
-OnAction toDoListHigherEffect(Context<ToDoList> ctx) =>
+Dispatch toDoListHigherEffect(Context<ToDoList> ctx) =>
     (Action action) => toDoListEffect(action, ctx);
 
 ToDoList toDoListReducer(ToDoList state, Action action) {

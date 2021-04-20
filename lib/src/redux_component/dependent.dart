@@ -1,63 +1,77 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/widgets.dart' hide Action, Page;
 
-import '../../fish_redux.dart';
 import '../redux/redux.dart';
 import 'basic.dart';
 
 class _Dependent<T, P> implements Dependent<T> {
   final AbstractConnector<T, P> connector;
-  final AbstractLogic<P> factors;
+  final AbstractLogic<P> logic;
 
   _Dependent({
-    @required this.factors,
+    @required this.logic,
     @required this.connector,
-  })  : assert(factors != null),
+  })  : assert(logic != null),
         assert(connector != null);
 
   @override
   SubReducer<T> createSubReducer() {
-    final Reducer<P> reducer = factors.reducer;
+    final Reducer<P> reducer = logic.reducer;
     return reducer != null ? connector.subReducer(reducer) : null;
   }
 
   @override
-  Widget buildComponent(PageStore<Object> store, Get<T> getter) {
-    assert(isComponent(), 'Unexpected type of ${factors.runtimeType}.');
-    final AbstractComponent<P> component = factors;
-    return component.buildComponent(store, () => connector.get(getter()));
+  Widget buildComponent(
+    Store<Object> store,
+    Get<T> getter, {
+    @required DispatchBus bus,
+    @required Enhancer<Object> enhancer,
+  }) {
+    assert(bus != null && enhancer != null);
+    assert(isComponent(), 'Unexpected type of ${logic.runtimeType}.');
+    final AbstractComponent<P> component = logic;
+    return component.buildComponent(
+      store,
+      () => connector.get(getter()),
+      bus: bus,
+      enhancer: enhancer,
+    );
   }
 
   @override
-  ListAdapter buildAdapter(
-      Object state, Dispatch dispatch, ViewService viewService) {
-    assert(isAdapter(), 'Unexpected type of ${factors.runtimeType}.');
-    final AbstractAdapter<P> adapter = factors;
-    return adapter.buildAdapter(state, dispatch, viewService);
+  ListAdapter buildAdapter(covariant ContextSys<P> ctx) {
+    assert(isAdapter(), 'Unexpected type of ${logic.runtimeType}.');
+    final AbstractAdapter<P> adapter = logic;
+    return adapter.buildAdapter(ctx);
   }
 
   @override
   Get<P> subGetter(Get<T> getter) => () => connector.get(getter());
 
   @override
-  ContextSys<P> createContext({
-    PageStore<Object> store,
+  ContextSys<P> createContext(
+    Store<Object> store,
     BuildContext buildContext,
-    Get<T> getState,
+    Get<T> getState, {
+    @required DispatchBus bus,
+    @required Enhancer<Object> enhancer,
   }) {
-    return factors.createContext(
-      store: store,
-      buildContext: buildContext,
-      getState: subGetter(getState),
+    assert(bus != null && enhancer != null);
+    return logic.createContext(
+      store,
+      buildContext,
+      subGetter(getState),
+      bus: bus,
+      enhancer: enhancer,
     );
   }
 
   @override
-  bool isComponent() => factors is AbstractComponent;
+  bool isComponent() => logic is AbstractComponent;
 
   @override
-  bool isAdapter() => factors is AbstractAdapter;
+  bool isAdapter() => logic is AbstractAdapter;
 }
 
 Dependent<K> createDependent<K, T>(
-        AbstractConnector<K, T> connector, Logic<T> factors) =>
-    _Dependent<K, T>(connector: connector, factors: factors);
+        AbstractConnector<K, T> connector, AbstractLogic<T> logic) =>
+    logic != null ? _Dependent<K, T>(connector: connector, logic: logic) : null;

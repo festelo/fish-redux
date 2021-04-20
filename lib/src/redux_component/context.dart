@@ -1,77 +1,90 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/widgets.dart' hide Action, Page;
 
-import '../../fish_redux.dart';
 import '../redux/redux.dart';
+import 'auto_dispose.dart';
 import 'basic.dart';
-import 'provider.dart';
+import 'lifecycle.dart';
 
-class _ExtraMixin {
+mixin _ExtraMixin {
   Map<String, Object> _extra;
   Map<String, Object> get extra => _extra ??= <String, Object>{};
 }
 
 /// Default Context
-class DefaultContext<T> extends ContextSys<T> with _ExtraMixin {
-  final AbstractLogic<T> factors;
-  final PageStore<Object> store;
+abstract class LogicContext<T> extends ContextSys<T> with _ExtraMixin {
+  final AbstractLogic<T> logic;
+
+  @override
+  final Store<Object> store;
+  @override
+  final DispatchBus bus;
+  @override
+  final Enhancer<Object> enhancer;
+
   final Get<T> getState;
+
+  void Function() _forceUpdate;
 
   BuildContext _buildContext;
   Dispatch _dispatch;
-  OnAction _onBroadcast;
+  Dispatch _effectDispatch;
 
-  DefaultContext({
-    @required this.factors,
+  LogicContext({
+    @required this.logic,
     @required this.store,
     @required BuildContext buildContext,
     @required this.getState,
-  })  : assert(factors != null),
+
+    /// pageBus
+    @required this.bus,
+    @required this.enhancer,
+  })  : assert(logic != null),
         assert(store != null),
         assert(buildContext != null),
         assert(getState != null),
+        assert(bus != null && enhancer != null),
         _buildContext = buildContext {
-    final OnAction onAction = factors.createHandlerOnAction(this);
+    ///
+    _effectDispatch = logic.createEffectDispatch(this, enhancer);
 
     /// create Dispatch
-    _dispatch = factors.createDispatch(onAction, this, store.dispatch);
+    _dispatch = logic.createDispatch(
+      _effectDispatch,
+      logic.createNextDispatch(
+        this,
+        enhancer,
+      ),
+      this,
+    );
 
     /// Register inter-component broadcast
-    _onBroadcast =
-        factors.createHandlerOnBroadcast(onAction, this, store.dispatch);
-    registerOnDisposed(store.registerReceiver(_onBroadcast));
+    registerOnDisposed(bus.registerReceiver(_effectDispatch));
   }
 
   @override
-  BuildContext get context {
-    assert(_throwIfDisposed());
-    return _buildContext;
+  void bindForceUpdate(void Function() forceUpdate) {
+    assert(_forceUpdate == null);
+    _forceUpdate = forceUpdate;
   }
+
+  @override
+  BuildContext get context => _buildContext;
 
   @override
   T get state => getState();
 
   @override
-  Dispatch get dispatch => _dispatch;
+  dynamic dispatch(Action action) => _dispatch(action);
 
   @override
-  Widget buildComponent(String name) {
+  Widget buildComponent(String name, {Widget defaultWidget}) {
     assert(name != null, 'The name must be NotNull for buildComponent.');
-    assert(_throwIfDisposed());
-    final Dependent<T> dependent = factors.slot(name);
-    assert(dependent != null, 'Could not found component by name "$name."');
-    return dependent?.buildComponent(store, getState) ?? Container();
-  }
-
-  @override
-  ListAdapter buildAdapter() {
-    assert(factors is AbstractAdapter<T>);
-    assert(_throwIfDisposed());
-    ListAdapter result;
-    if (factors is AbstractAdapter<T>) {
-      final AbstractAdapter<T> abstractAdapter = factors;
-      result = abstractAdapter.buildAdapter(state, dispatch, this);
-    }
-    return result ?? const ListAdapter(null, 0);
+    final Dependent<T> dependent = logic.slot(name);
+    final Widget result = dependent?.buildComponent(store, getState,
+        bus: bus, enhancer: enhancer);
+    assert(result != null || defaultWidget != null,
+        'Could not found component by name "$name." You can set a default widget for buildComponent');
+    return result ?? (defaultWidget ?? Container());
   }
 
   @override
@@ -81,29 +94,15 @@ class DefaultContext<T> extends ContextSys<T> with _ExtraMixin {
   }
 
   @override
-  void appBroadcast(Action action) {
-    assert(_throwIfDisposed());
-    AppProvider.appBroadcast(context, action);
-  }
-
-  @override
-  void pageBroadcast(Action action, {bool excludeSelf}) {
-    assert(_throwIfDisposed());
-    store.sendBroadcast(
-      action,
-      excluded: excludeSelf == true ? _onBroadcast : null,
-    );
-  }
-
-  @override
   void dispose() {
     super.dispose();
     _buildContext = null;
+    _forceUpdate = null;
   }
 
   bool _throwIfDisposed() {
     if (isDisposed) {
-      throw const DisposeException(
+      throw Exception(
           'Ctx has been disposed which could not been used any more.');
     }
     return true;
@@ -118,50 +117,174 @@ class DefaultContext<T> extends ContextSys<T> with _ExtraMixin {
     }
     return null;
   }
-}
 
-class _TwinContext<T> extends ContextSys<T> with _ExtraMixin {
-  final ContextSys<T> mainCtx;
-  final ContextSys<T> sidecarCtx;
+  @override
+  void broadcastEffect(Action action, {bool excluded}) =>
+      bus.dispatch(action, excluded: excluded == true ? _effectDispatch : null);
 
-  _TwinContext(this.mainCtx, this.sidecarCtx)
-      : assert(mainCtx != null && sidecarCtx != null) {
-    mainCtx.setParent(this);
-    sidecarCtx.setParent(this);
+  @override
+  void broadcast(Action action) => bus.broadcast(action);
+
+  @override
+  void Function() addObservable(Subscribe observable) {
+    final void Function() unsubscribe = observable(() {
+      _forceUpdate?.call();
+    });
+    registerOnDisposed(unsubscribe);
+    return unsubscribe;
   }
 
   @override
-  void appBroadcast(Action action) => AppProvider.appBroadcast(context, action);
+  void forceUpdate() => _forceUpdate?.call();
 
   @override
-  ListAdapter buildAdapter() => sidecarCtx.buildAdapter();
+  void Function() listen({
+    bool Function(T, T) isChanged,
+    @required void Function() onChange,
+  }) {
+    assert(onChange != null);
+    T oldState;
+    final AutoDispose disposable = registerOnDisposed(
+      store.subscribe(
+        () => () {
+          final T newState = state;
+          final bool flag = isChanged == null
+              ? !identical(oldState, newState)
+              : isChanged(oldState, newState);
+          oldState = newState;
+          if (flag) {
+            onChange();
+          }
+        },
+      ),
+    );
 
-  @override
-  Widget buildComponent(String name) => mainCtx.buildComponent(name);
+    return () => disposable?.dispose();
+  }
+}
 
-  @override
-  BuildContext get context => mainCtx.context;
+class ComponentContext<T> extends LogicContext<T> implements ViewUpdater<T> {
+  final ViewBuilder<T> view;
+  final ShouldUpdate<T> shouldUpdate;
+  final String name;
+  final Function() markNeedsBuild;
+  final ContextSys<Object> sidecarCtx;
 
-  @override
-  Dispatch get dispatch => mainCtx.dispatch;
+  Widget _widgetCache;
+  T _latestState;
+
+  ComponentContext({
+    @required AbstractComponent<T> logic,
+    @required Store<Object> store,
+    @required BuildContext buildContext,
+    @required Get<T> getState,
+    @required this.view,
+    @required this.shouldUpdate,
+    @required this.name,
+    @required this.markNeedsBuild,
+    @required this.sidecarCtx,
+    @required DispatchBus bus,
+    @required Enhancer<Object> enhancer,
+  })  : assert(bus != null && enhancer != null),
+        super(
+          logic: logic,
+          store: store,
+          buildContext: buildContext,
+          getState: getState,
+          bus: bus,
+          enhancer: enhancer,
+        ) {
+    _latestState = state;
+
+    sidecarCtx?.setParent(this);
+  }
 
   @override
   void onLifecycle(Action action) {
-    mainCtx.onLifecycle(action);
-    sidecarCtx.onLifecycle(action);
+    super.onLifecycle(action);
+    sidecarCtx?.onLifecycle(LifecycleCreator.reassemble());
   }
 
   @override
-  T get state => mainCtx.state;
+  ListAdapter buildAdapter() {
+    assert(sidecarCtx != null);
+    return logic.adapterDep()?.buildAdapter(sidecarCtx) ??
+        const ListAdapter(null, 0);
+  }
 
   @override
-  void pageBroadcast(Action action, {bool excludeSelf}) =>
-      mainCtx.pageBroadcast(action, excludeSelf: excludeSelf);
+  Widget buildWidget() {
+    Widget result = _widgetCache;
+    if (result == null) {
+      result = _widgetCache = view(state, dispatch, this);
+
+      dispatch(LifecycleCreator.build(name));
+    }
+    return result;
+  }
 
   @override
-  State<StatefulWidget> get stfState => mainCtx.stfState;
+  void didUpdateWidget() {
+    final T now = state;
+    if (shouldUpdate(_latestState, now)) {
+      _widgetCache = null;
+      _latestState = now;
+    }
+  }
+
+  @override
+  void onNotify() {
+    final T now = state;
+    if (shouldUpdate(_latestState, now)) {
+      _widgetCache = null;
+
+      markNeedsBuild();
+
+      _latestState = now;
+    }
+  }
+
+  @override
+  void clearCache() {
+    _widgetCache = null;
+  }
+
+  @override
+  void forceUpdate() {
+    _widgetCache = null;
+
+    try {
+      markNeedsBuild();
+    } catch (e) {
+      /// TODO
+      /// should try-catch in force mode which is called from outside
+    }
+  }
 }
 
-ContextSys<T> mergeContext<T>(ContextSys<T> mainCtx, ContextSys<T> sidecarCtx) {
-  return sidecarCtx != null ? _TwinContext<T>(mainCtx, sidecarCtx) : mainCtx;
+class PureViewViewService implements ViewService {
+  final DispatchBus bus;
+
+  @override
+  final BuildContext context;
+
+  PureViewViewService(this.bus, this.context);
+
+  @override
+  void broadcast(Action action) => bus.broadcast(action);
+
+  @override
+  void broadcastEffect(Action action, {bool excluded}) => bus.dispatch(action);
+
+  @override
+  ListAdapter buildAdapter() => throw Exception(
+      'Unexpected call of "buildAdapter" in a PureViewComponent');
+
+  @override
+  Widget buildComponent(String name, {Widget defaultWidget}) => throw Exception(
+      'Unexpected call of "buildComponent" in a PureViewComponent');
+
+  @override
+  Map<String, Object> get extra =>
+      throw Exception('Unexpected call of "extra" in a PureViewComponent');
 }

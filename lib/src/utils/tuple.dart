@@ -1,19 +1,17 @@
-int _hash(Iterable<int> values) {
-  int hash = 0;
+import 'hash.dart';
 
-  ///combine
-  for (int value in values) {
-    hash = 0x1fffffff & (hash + value);
-    hash = 0x1fffffff & (hash + ((0x0007ffff & hash) << 10));
-    hash = hash ^ (hash >> 6);
-  }
+class Tuple0<T0> {
+  const Tuple0();
 
-  ///finish
-  hash = 0x1fffffff & (hash + ((0x03ffffff & hash) << 3));
-  hash = hash ^ (hash >> 11);
-  return 0x1fffffff & (hash + ((0x00003fff & hash) << 15));
+  @override
+  bool operator ==(Object other) => other is Tuple0;
+
+  @override
+  int get hashCode => hash(<int>[0]);
 }
 
+/// Represents a 1-tuple
+/// Mutable data types are easier to use.
 class Tuple1<T0> {
   T0 i0;
 
@@ -23,16 +21,21 @@ class Tuple1<T0> {
   String toString() => '[$i0]';
 
   @override
-  bool operator ==(Object other) => other is Tuple2 && other.i0 == i0;
+  bool operator ==(Object other) => other is Tuple1 && other.i0 == i0;
 
   @override
-  int get hashCode => _hash(<int>[i0.hashCode]);
+  int get hashCode => hash(<int>[i0.hashCode]);
 }
 
+/// Represents a 2-tuple or pair.
 class Tuple2<T0, T1> {
+  /// First item of the tuple
   T0 i0;
+
+  /// Second item of the tuple
   T1 i1;
 
+  /// Create a new tuple value with the specified items.
   Tuple2([this.i0, this.i1]);
 
   @override
@@ -43,9 +46,10 @@ class Tuple2<T0, T1> {
       other is Tuple2 && other.i0 == i0 && other.i1 == i1;
 
   @override
-  int get hashCode => _hash(<int>[i0.hashCode, i1.hashCode]);
+  int get hashCode => hash(<int>[i0.hashCode, i1.hashCode]);
 }
 
+/// Represents a 3-tuple or pair.
 class Tuple3<T0, T1, T2> {
   T0 i0;
   T1 i1;
@@ -61,9 +65,10 @@ class Tuple3<T0, T1, T2> {
       other is Tuple3 && other.i0 == i0 && other.i1 == i1 && other.i2 == i2;
 
   @override
-  int get hashCode => _hash(<int>[i0.hashCode, i1.hashCode, i2.hashCode]);
+  int get hashCode => hash(<int>[i0.hashCode, i1.hashCode, i2.hashCode]);
 }
 
+/// Represents a 4-tuple or pair.
 class Tuple4<T0, T1, T2, T3> {
   T0 i0;
   T1 i1;
@@ -85,9 +90,10 @@ class Tuple4<T0, T1, T2, T3> {
 
   @override
   int get hashCode =>
-      _hash(<int>[i0.hashCode, i1.hashCode, i2.hashCode, i3.hashCode]);
+      hash(<int>[i0.hashCode, i1.hashCode, i2.hashCode, i3.hashCode]);
 }
 
+/// Represents a 5-tuple or pair.
 class Tuple5<T0, T1, T2, T3, T4> {
   T0 i0;
   T1 i1;
@@ -110,10 +116,11 @@ class Tuple5<T0, T1, T2, T3, T4> {
       other.i4 == i4;
 
   @override
-  int get hashCode => _hash(
+  int get hashCode => hash(
       <int>[i0.hashCode, i1.hashCode, i2.hashCode, i3.hashCode, i4.hashCode]);
 }
 
+/// Represents a 6-tuple or pair.
 class Tuple6<T0, T1, T2, T3, T4, T5> {
   T0 i0;
   T1 i1;
@@ -138,7 +145,7 @@ class Tuple6<T0, T1, T2, T3, T4, T5> {
       other.i5 == i5;
 
   @override
-  int get hashCode => _hash(<int>[
+  int get hashCode => hash(<int>[
         i0.hashCode,
         i1.hashCode,
         i2.hashCode,

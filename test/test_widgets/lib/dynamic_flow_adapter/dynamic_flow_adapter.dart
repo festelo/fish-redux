@@ -1,9 +1,9 @@
 import 'package:fish_redux/fish_redux.dart';
-import 'package:flutter/material.dart';
-import 'state.dart';
+
+import '../test_base.dart';
 import 'action.dart';
 import 'component.dart';
-import '../test_base.dart';
+import 'state.dart';
 
 bool toDoListEffect(Action action, Context<ToDoList> ctx) {
   if (action.type == ToDoListAction.onAdd) {
@@ -29,16 +29,17 @@ ToDoList toDoListReducer(ToDoList state, Action action) {
   }
 }
 
-final testAdapter = TestDynamicFlowAdapter<ToDoList>(
-    pool: <String, ToDoComponent>{'toDo': ToDoComponent()},
-    connector: Connector<ToDoList, List<ItemBean>>(
-        get: (ToDoList toDoList) => toDoList.list
-            .map<ItemBean>((Todo toDo) => ItemBean('toDo', toDo))
-            .toList(),
-        set: (ToDoList toDoList, List<ItemBean> beans) {
-          toDoList.list.clear();
-          toDoList.list
-              .addAll(beans.map<Todo>((ItemBean bean) => bean.data).toList());
-        }),
-    reducer: toDoListReducer,
-    effect: toDoListEffect);
+final TestDynamicFlowAdapter<ToDoList> testAdapter =
+    TestDynamicFlowAdapter<ToDoList>(
+        pool: <String, ToDoComponent>{'toDo': ToDoComponent()},
+        connector: ConnOp<ToDoList, List<ItemBean>>(
+            get: (ToDoList toDoList) => toDoList.list
+                .map<ItemBean>((Todo toDo) => ItemBean('toDo', toDo))
+                .toList(),
+            set: (ToDoList toDoList, List<ItemBean> beans) {
+              toDoList.list.clear();
+              toDoList.list.addAll(
+                  beans.map<Todo>((ItemBean bean) => bean.data).toList());
+            }),
+        reducer: toDoListReducer,
+        effect: toDoListEffect);

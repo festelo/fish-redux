@@ -1,6 +1,5 @@
 export 'connector.dart';
-export 'immutable.dart';
 export 'map_like.dart';
-export 'mutable.dart';
+export 'none.dart';
 export 'op_mixin.dart';
 export 'reselect.dart';
