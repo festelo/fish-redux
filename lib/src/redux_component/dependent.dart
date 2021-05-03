@@ -8,27 +8,27 @@ class _Dependent<T, P> implements Dependent<T> {
   final AbstractLogic<P> logic;
 
   _Dependent({
-    @required this.logic,
-    @required this.connector,
-  })  : assert(logic != null),
+    required this.logic,
+    required this.connector,
+  })   : assert(logic != null),
         assert(connector != null);
 
   @override
-  SubReducer<T> createSubReducer() {
-    final Reducer<P> reducer = logic.reducer;
+  SubReducer<T>? createSubReducer() {
+    final Reducer<P>? reducer = logic.reducer;
     return reducer != null ? connector.subReducer(reducer) : null;
   }
 
   @override
   Widget buildComponent(
-    Store<Object> store,
+    Store<Object?> store,
     Get<T> getter, {
-    @required DispatchBus bus,
-    @required Enhancer<Object> enhancer,
+    required DispatchBus? bus,
+    required Enhancer<Object?> enhancer,
   }) {
     assert(bus != null && enhancer != null);
     assert(isComponent(), 'Unexpected type of ${logic.runtimeType}.');
-    final AbstractComponent<P> component = logic;
+    final AbstractComponent<P> component = logic as AbstractComponent<P>;
     return component.buildComponent(
       store,
       () => connector.get(getter()),
@@ -38,9 +38,9 @@ class _Dependent<T, P> implements Dependent<T> {
   }
 
   @override
-  ListAdapter buildAdapter(covariant ContextSys<P> ctx) {
+  ListAdapter? buildAdapter(covariant ContextSys<P?> ctx) {
     assert(isAdapter(), 'Unexpected type of ${logic.runtimeType}.');
-    final AbstractAdapter<P> adapter = logic;
+    final AbstractAdapter<P?> adapter = logic as AbstractAdapter<P?>;
     return adapter.buildAdapter(ctx);
   }
 
@@ -49,13 +49,12 @@ class _Dependent<T, P> implements Dependent<T> {
 
   @override
   ContextSys<P> createContext(
-    Store<Object> store,
-    BuildContext buildContext,
+    Store<Object?> store,
+    BuildContext? buildContext,
     Get<T> getState, {
-    @required DispatchBus bus,
-    @required Enhancer<Object> enhancer,
+    required DispatchBus bus,
+    required Enhancer<Object?> enhancer,
   }) {
-    assert(bus != null && enhancer != null);
     return logic.createContext(
       store,
       buildContext,
@@ -74,4 +73,4 @@ class _Dependent<T, P> implements Dependent<T> {
 
 Dependent<K> createDependent<K, T>(
         AbstractConnector<K, T> connector, AbstractLogic<T> logic) =>
-    logic != null ? _Dependent<K, T>(connector: connector, logic: logic) : null;
+    _Dependent<K, T>(connector: connector, logic: logic);

@@ -42,22 +42,22 @@ abstract class ImmutableSource extends AdapterSource {
 }
 
 /// template is a map, driven by source
-class SourceFlowAdapter<T extends AdapterSource> extends Logic<T>
+class SourceFlowAdapter<T extends AdapterSource> extends Logic<T?>
     with RecycleContextMixin<T> {
   final Map<String, AbstractLogic<Object>> pool;
 
   SourceFlowAdapter({
-    @required this.pool,
-    ReducerFilter<T> filter,
-    Reducer<T> reducer,
-    Effect<T> effect,
+    required this.pool,
+    ReducerFilter<T?>? filter,
+    Reducer<T?>? reducer,
+    Effect<T?>? effect,
 
     /// implement [StateKey] in T instead of using key in Logic.
     /// class T implements StateKey {
     ///   Object _key = UniqueKey();
     ///   Object key() => _key;
     /// }
-    @deprecated Object Function(T) key,
+    @deprecated Object Function(T?)? key,
   }) : super(
           reducer: _dynamicReducer(reducer, pool),
           effect: effect,
@@ -68,24 +68,24 @@ class SourceFlowAdapter<T extends AdapterSource> extends Logic<T>
         );
 
   @override
-  ListAdapter buildAdapter(ContextSys<T> ctx) {
-    final AdapterSource adapterSource = ctx.state;
+  ListAdapter? buildAdapter(ContextSys<T?>? ctx) {
+    final AdapterSource adapterSource = ctx!.state!;
     assert(adapterSource != null);
 
-    final RecycleContext<T> recycleCtx = ctx;
-    final List<ListAdapter> adapters = <ListAdapter>[];
+    final RecycleContext<T> recycleCtx = ctx as RecycleContext<T>;
+    final List<ListAdapter?> adapters = <ListAdapter?>[];
 
     recycleCtx.markAllUnused();
 
     for (int index = 0; index < adapterSource.itemCount; index++) {
       final String type = adapterSource.getItemType(index);
-      final AbstractLogic<Object> result = pool[type];
+      final AbstractLogic<Object> result = pool[type]!;
 
       assert(
           result != null, 'Type of $type has not benn registered in the pool.');
       if (result != null) {
-        if (result is AbstractAdapter<Object>) {
-          final ContextSys<Object> subCtx = recycleCtx.reuseOrCreate(
+        if (result is AbstractAdapter<Object?>) {
+          final ContextSys<Object?> subCtx = recycleCtx.reuseOrCreate(
             Tuple2<Type, Object>(
               result.runtimeType,
               result.key(adapterSource.getItemData(index)),
@@ -94,13 +94,14 @@ class SourceFlowAdapter<T extends AdapterSource> extends Logic<T>
               recycleCtx.store,
               recycleCtx.context,
               _subGetter(() => recycleCtx.state, index),
-              bus: recycleCtx.bus,
+              bus: recycleCtx.bus!,
               enhancer: recycleCtx.enhancer,
             ),
           );
 
           /// hack to reduce adapter's rebuilding
-          adapters.add(memoizeListAdapter(result, subCtx));
+          adapters.add(memoizeListAdapter(
+              result as AbstractAdapterBuilder<Object?>, subCtx));
         } else if (result is AbstractComponent<Object>) {
           adapters.add(ListAdapter((BuildContext buildContext, int _) {
             return result.buildComponent(
@@ -120,14 +121,17 @@ class SourceFlowAdapter<T extends AdapterSource> extends Logic<T>
 }
 
 /// Generate reducer for List<ItemBean> and combine them into one
-Reducer<T> _dynamicReducer<T extends AdapterSource>(
-  Reducer<T> reducer,
+Reducer<T?>? _dynamicReducer<T extends AdapterSource>(
+  Reducer<T?>? reducer,
   Map<String, AbstractLogic<Object>> pool,
 ) {
-  final Reducer<T> dyReducer = (AdapterSource state, Action action) {
-    AdapterSource copy;
+  final Reducer<T?> dyReducer = (AdapterSource? state, Action action) {
+    AdapterSource? copy;
+    if (state == null) {
+      return null;
+    }
     for (int i = 0; i < state.itemCount; i++) {
-      final AbstractLogic<Object> result = pool[state.getItemType(i)];
+      final AbstractLogic<Object>? result = pool[state.getItemType(i)];
       if (result != null) {
         final Object oldData = state.getItemData(i);
         final Object newData = result.onReducer(oldData, action);
@@ -136,10 +140,10 @@ Reducer<T> _dynamicReducer<T extends AdapterSource>(
         }
       }
     }
-    return copy ?? state;
+    return copy as T? ?? state as T;
   };
 
-  return combineReducers(<Reducer<T>>[reducer, dyReducer]);
+  return combineReducers(<Reducer<T?>?>[reducer, dyReducer]);
 }
 
 /// Define itemBean how to get state with connector
@@ -176,7 +180,7 @@ Get<Object> _subGetter(Get<AdapterSource> getter, int index) {
   };
 }
 
-bool _couldReuse({String typeA, String typeB, Object dataA, Object dataB}) {
+bool _couldReuse({String? typeA, String? typeB, Object? dataA, Object? dataB}) {
   return typeA != typeB
       ? false
       : dataA.runtimeType != dataB.runtimeType

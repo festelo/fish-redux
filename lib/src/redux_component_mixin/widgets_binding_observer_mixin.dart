@@ -20,18 +20,18 @@ class _WidgetsBindingObserverStfState<T> extends ComponentState<T>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance!.addObserver(this);
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
+    WidgetsBinding.instance!.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    ctx.onLifecycle(LifecycleCreator.didChangeAppLifecycleState(state));
+    ctx!.onLifecycle(LifecycleCreator.didChangeAppLifecycleState(state));
   }
 }

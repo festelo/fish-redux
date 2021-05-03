@@ -4,10 +4,10 @@ import '../redux/redux.dart';
 import 'basic.dart';
 
 class EnhancerDefault<T> implements Enhancer<T> {
-  StoreEnhancer<T> _storeEnhancer;
-  ViewMiddleware<T> _viewEnhancer;
-  EffectMiddleware<T> _effectEnhancer;
-  AdapterMiddleware<T> _adapterEnhancer;
+  StoreEnhancer<T>? _storeEnhancer;
+  ViewMiddleware<T>? _viewEnhancer;
+  EffectMiddleware<T>? _effectEnhancer;
+  AdapterMiddleware<T>? _adapterEnhancer;
 
   final List<Middleware<T>> _middleware = <Middleware<T>>[];
   final List<ViewMiddleware<T>> _viewMiddleware = <ViewMiddleware<T>>[];
@@ -16,10 +16,10 @@ class EnhancerDefault<T> implements Enhancer<T> {
       <AdapterMiddleware<T>>[];
 
   EnhancerDefault({
-    List<Middleware<T>> middleware,
-    List<ViewMiddleware<T>> viewMiddleware,
-    List<EffectMiddleware<T>> effectMiddleware,
-    List<AdapterMiddleware<T>> adapterMiddleware,
+    List<Middleware<T>>? middleware,
+    List<ViewMiddleware<T>>? viewMiddleware,
+    List<EffectMiddleware<T>>? effectMiddleware,
+    List<AdapterMiddleware<T>>? adapterMiddleware,
   }) {
     append(
       middleware: middleware,
@@ -31,10 +31,10 @@ class EnhancerDefault<T> implements Enhancer<T> {
 
   @override
   void unshift({
-    List<Middleware<T>> middleware,
-    List<ViewMiddleware<T>> viewMiddleware,
-    List<EffectMiddleware<T>> effectMiddleware,
-    List<AdapterMiddleware<T>> adapterMiddleware,
+    List<Middleware<T>>? middleware,
+    List<ViewMiddleware<T>>? viewMiddleware,
+    List<EffectMiddleware<T>>? effectMiddleware,
+    List<AdapterMiddleware<T>>? adapterMiddleware,
   }) {
     if (middleware != null) {
       _middleware.insertAll(0, middleware);
@@ -56,10 +56,10 @@ class EnhancerDefault<T> implements Enhancer<T> {
 
   @override
   void append({
-    List<Middleware<T>> middleware,
-    List<ViewMiddleware<T>> viewMiddleware,
-    List<EffectMiddleware<T>> effectMiddleware,
-    List<AdapterMiddleware<T>> adapterMiddleware,
+    List<Middleware<T>>? middleware,
+    List<ViewMiddleware<T>>? viewMiddleware,
+    List<EffectMiddleware<T>>? effectMiddleware,
+    List<AdapterMiddleware<T>>? adapterMiddleware,
   }) {
     if (middleware != null) {
       _middleware.addAll(middleware);
@@ -83,7 +83,7 @@ class EnhancerDefault<T> implements Enhancer<T> {
   ViewBuilder<K> viewEnhance<K>(
     ViewBuilder<K> view,
     AbstractComponent<K> component,
-    Store<T> store,
+    Store<T>? store,
   ) =>
       _viewEnhancer?.call(component, store)?.call(_inverterView<K>(view)) ??
       view;
@@ -100,8 +100,8 @@ class EnhancerDefault<T> implements Enhancer<T> {
       adapterBuilder;
 
   @override
-  Effect<K> effectEnhance<K>(
-    Effect<K> effect,
+  Effect<K>? effectEnhance<K>(
+    Effect<K>? effect,
     AbstractLogic<K> logic,
     Store<T> store,
   ) =>
@@ -112,18 +112,16 @@ class EnhancerDefault<T> implements Enhancer<T> {
   StoreCreator<T> storeEnhance(StoreCreator<T> creator) =>
       _storeEnhancer?.call(creator) ?? creator;
 
-  Effect<dynamic> _inverterEffect<K>(Effect<K> effect) => effect == null
+  Effect<dynamic>? _inverterEffect<K>(Effect<K>? effect) => effect == null
       ? null
-      : (Action action, Context<dynamic> ctx) => effect(action, ctx);
+      : (Action action, Context<dynamic> ctx) =>
+          effect(action, ctx as Context<K>);
 
-  ViewBuilder<dynamic> _inverterView<K>(ViewBuilder<K> view) => view == null
-      ? null
-      : (dynamic state, Dispatch dispatch, ViewService viewService) =>
+  ViewBuilder<dynamic> _inverterView<K>(ViewBuilder<K> view) =>
+      (dynamic state, Dispatch dispatch, ViewService? viewService) =>
           view(state, dispatch, viewService);
 
   AdapterBuilder<dynamic> _inverterAdapter<K>(AdapterBuilder<K> adapter) =>
-      adapter == null
-          ? null
-          : (dynamic state, Dispatch dispatch, ViewService viewService) =>
-              adapter(state, dispatch, viewService);
+      (dynamic state, Dispatch dispatch, ViewService? viewService) =>
+          adapter(state, dispatch, viewService);
 }

@@ -11,7 +11,7 @@ class ItemBean {
 
   const ItemBean(this.type, this.data);
 
-  ItemBean clone({String type, Object data}) =>
+  ItemBean clone({String? type, Object? data}) =>
       ItemBean(type ?? this.type, data ?? this.data);
 }
 
@@ -19,23 +19,23 @@ class ItemBean {
 /// Use [SourceFlowAdapter] instead of [DynamicFlowAdapter]
 /// see in example
 @deprecated
-class DynamicFlowAdapter<T> extends Logic<T> with RecycleContextMixin<T> {
+class DynamicFlowAdapter<T> extends Logic<T?> with RecycleContextMixin<T> {
   final Map<String, AbstractLogic<Object>> pool;
-  final AbstractConnector<T, List<ItemBean>> connector;
+  final AbstractConnector<T?, List<ItemBean>> connector;
 
   DynamicFlowAdapter({
-    @required this.pool,
-    @required this.connector,
-    ReducerFilter<T> filter,
-    Reducer<T> reducer,
-    Effect<T> effect,
+    required this.pool,
+    required this.connector,
+    ReducerFilter<T?>? filter,
+    Reducer<T?>? reducer,
+    Effect<T?>? effect,
 
     /// implement [StateKey] in T instead of using key in Logic.
     /// class T implements StateKey {
     ///   Object _key = UniqueKey();
     ///   Object key() => _key;
     /// }
-    @deprecated Object Function(T) key,
+    @deprecated Object Function(T?)? key,
   }) : super(
           reducer: _dynamicReducer(reducer, pool, connector),
           effect: effect,
@@ -46,24 +46,24 @@ class DynamicFlowAdapter<T> extends Logic<T> with RecycleContextMixin<T> {
         );
 
   @override
-  ListAdapter buildAdapter(ContextSys<T> ctx) {
-    final List<ItemBean> list = connector.get(ctx.state);
+  ListAdapter? buildAdapter(ContextSys<T?>? ctx) {
+    final List<ItemBean> list = connector.get(ctx!.state);
     assert(list != null);
 
-    final RecycleContext<T> recycleCtx = ctx;
-    final List<ListAdapter> adapters = <ListAdapter>[];
+    final RecycleContext<T> recycleCtx = ctx as RecycleContext<T>;
+    final List<ListAdapter?> adapters = <ListAdapter?>[];
 
     recycleCtx.markAllUnused();
 
     for (int index = 0; index < list.length; index++) {
       final ItemBean itemBean = list[index];
       final String type = itemBean.type;
-      final AbstractLogic<Object> result = pool[type];
+      final AbstractLogic<Object> result = pool[type]!;
       assert(
           result != null, 'Type of $type has not benn registered in the pool.');
       if (result != null) {
-        if (result is AbstractAdapter<Object>) {
-          final ContextSys<Object> subCtx = recycleCtx.reuseOrCreate(
+        if (result is AbstractAdapter<Object?>) {
+          final ContextSys<Object?> subCtx = recycleCtx.reuseOrCreate(
             Tuple2<Type, Object>(
               result.runtimeType,
               result.key(itemBean.data),
@@ -72,13 +72,14 @@ class DynamicFlowAdapter<T> extends Logic<T> with RecycleContextMixin<T> {
               recycleCtx.store,
               recycleCtx.context,
               _subGetter(() => connector.get(recycleCtx.state), index),
-              bus: recycleCtx.bus,
+              bus: recycleCtx.bus!,
               enhancer: recycleCtx.enhancer,
             ),
           );
 
           /// hack to reduce adapter's rebuilding
-          adapters.add(memoizeListAdapter(result, subCtx));
+          adapters.add(memoizeListAdapter(
+              result as AbstractAdapterBuilder<Object?>, subCtx));
         } else if (result is AbstractComponent<Object>) {
           adapters.add(ListAdapter((BuildContext buildContext, int _) {
             return result.buildComponent(
@@ -98,17 +99,17 @@ class DynamicFlowAdapter<T> extends Logic<T> with RecycleContextMixin<T> {
 }
 
 /// Generate reducer for List<ItemBean> and combine them into one
-Reducer<T> _dynamicReducer<T>(
-  Reducer<T> reducer,
+Reducer<T>? _dynamicReducer<T>(
+  Reducer<T>? reducer,
   Map<String, AbstractLogic<Object>> pool,
   AbstractConnector<T, List<ItemBean>> connector,
 ) {
   final Reducer<List<ItemBean>> dyReducer =
       (List<ItemBean> state, Action action) {
-    List<ItemBean> copy;
+    List<ItemBean>? copy;
     for (int i = 0; i < state.length; i++) {
       final ItemBean itemBean = state[i];
-      final AbstractLogic<Object> result = pool[itemBean.type];
+      final AbstractLogic<Object>? result = pool[itemBean.type];
       if (result != null) {
         final Object newData = result.onReducer(itemBean.data, action);
         if (newData != itemBean.data) {
@@ -120,7 +121,7 @@ Reducer<T> _dynamicReducer<T>(
     return copy ?? state;
   };
 
-  return combineReducers(<Reducer<T>>[
+  return combineReducers(<Reducer<T>?>[
     reducer,
     combineSubReducers(<SubReducer<T>>[connector.subReducer(dyReducer)]),
   ]);
@@ -162,7 +163,7 @@ bool _couldReuse(ItemBean beanA, ItemBean beanB) {
     return false;
   }
 
-  final Object keyA = dataA is StateKey ? dataA.key() : null;
-  final Object keyB = dataB is StateKey ? dataB.key() : null;
+  final Object? keyA = dataA is StateKey ? dataA.key() : null;
+  final Object? keyB = dataB is StateKey ? dataB.key() : null;
   return keyA == keyB;
 }

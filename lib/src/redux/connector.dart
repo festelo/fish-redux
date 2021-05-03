@@ -75,21 +75,22 @@ dynamic _clone<T>(T state) {
 ///       SubState get(State state) => state.sub;
 ///       void set(State state, SubState sub) => state.sub = sub;
 ///     }
-abstract class MutableConn<T, P> implements AbstractConnector<T, P> {
+abstract class MutableConn<T, P> implements AbstractConnector<T?, P> {
   const MutableConn();
 
-  void set(T state, P subState);
+  void set(T? state, P subState);
 
   @override
-  SubReducer<T> subReducer(Reducer<P> reducer) {
-    return (T state, Action action, bool isStateCopied) {
+  SubReducer<T?> subReducer(Reducer<P> reducer) {
+    return (T? state, Action action, bool isStateCopied) {
       final P props = get(state);
       if (props == null) {
         return state;
       }
       final P newProps = reducer(props, action);
       final bool hasChanged = newProps != props;
-      final T copy = (hasChanged && !isStateCopied) ? _clone<T>(state) : state;
+      final T? copy =
+          (hasChanged && !isStateCopied) ? _clone<T?>(state) : state;
       if (hasChanged) {
         set(copy, newProps);
       }

@@ -6,7 +6,7 @@ Reducer<T> _noop<T>() => (T state, Action action) => state;
 
 typedef _VoidCallback = void Function();
 
-void _throwIfNot(bool condition, [String message]) {
+void _throwIfNot(bool condition, [String? message]) {
   if (!condition) {
     throw ArgumentError(message);
   }
@@ -56,7 +56,7 @@ Store<T> _createStore<T>(final T preloadedState, final Reducer<T> reducer) {
       _notifyController.add(_state);
     }
     ..replaceReducer = (Reducer<T> replaceReducer) {
-      _reducer = replaceReducer ?? _noop;
+      _reducer = replaceReducer ?? _noop as T Function(T, Action);
     }
     ..subscribe = (_VoidCallback listener) {
       _throwIfNot(
@@ -88,12 +88,12 @@ Store<T> _createStore<T>(final T preloadedState, final Reducer<T> reducer) {
 
 /// create a store with enhancer
 Store<T> createStore<T>(T preloadedState, Reducer<T> reducer,
-        [StoreEnhancer<T> enhancer]) =>
+        [StoreEnhancer<T>? enhancer]) =>
     enhancer != null
         ? enhancer(_createStore)(preloadedState, reducer)
         : _createStore(preloadedState, reducer);
 
-StoreEnhancer<T> composeStoreEnhancer<T>(List<StoreEnhancer<T>> enhancers) =>
+StoreEnhancer<T>? composeStoreEnhancer<T>(List<StoreEnhancer<T>> enhancers) =>
     enhancers == null || enhancers.isEmpty
         ? null
         : enhancers.reduce((StoreEnhancer<T> previous, StoreEnhancer<T> next) =>

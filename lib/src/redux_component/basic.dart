@@ -10,14 +10,14 @@ import 'auto_dispose.dart';
 typedef ViewBuilder<T> = Widget Function(
   T state,
   Dispatch dispatch,
-  ViewService viewService,
+  ViewService? viewService,
 );
 
 /// Define a base ListAdapter which is used for ListView.builder.
 /// Many small listAdapters could be merged to a bigger one.
 class ListAdapter {
   final int itemCount;
-  final IndexedWidgetBuilder itemBuilder;
+  final IndexedWidgetBuilder? itemBuilder;
   const ListAdapter(this.itemBuilder, this.itemCount);
 }
 
@@ -28,7 +28,7 @@ class ListAdapter {
 typedef AdapterBuilder<T> = ListAdapter Function(
   T state,
   Dispatch dispatch,
-  ViewService viewService,
+  ViewService? viewService,
 );
 
 /// Data driven ui
@@ -83,7 +83,7 @@ typedef Effect<T> = dynamic Function(Action action, Context<T> ctx);
 /// }
 typedef ViewMiddleware<T> = Composable<ViewBuilder<dynamic>> Function(
   AbstractComponent<dynamic>,
-  Store<T>,
+  Store<T>?,
 );
 
 /// AOP on adapter
@@ -106,7 +106,7 @@ typedef AdapterMiddleware<T> = Composable<AdapterBuilder<dynamic>> Function(
 ///     };
 ///   };
 /// }
-typedef EffectMiddleware<T> = Composable<Effect<dynamic>> Function(
+typedef EffectMiddleware<T> = Composable<Effect<dynamic>?> Function(
   AbstractLogic<dynamic>,
   Store<T>,
 );
@@ -116,7 +116,7 @@ abstract class Enhancer<T> {
   ViewBuilder<K> viewEnhance<K>(
     ViewBuilder<K> view,
     AbstractComponent<K> component,
-    Store<T> store,
+    Store<T>? store,
   );
 
   AdapterBuilder<K> adapterEnhance<K>(
@@ -125,8 +125,8 @@ abstract class Enhancer<T> {
     Store<T> store,
   );
 
-  Effect<K> effectEnhance<K>(
-    Effect<K> effect,
+  Effect<K>? effectEnhance<K>(
+    Effect<K>? effect,
     AbstractLogic<K> logic,
     Store<T> store,
   );
@@ -134,17 +134,17 @@ abstract class Enhancer<T> {
   StoreCreator<T> storeEnhance(StoreCreator<T> creator);
 
   void unshift({
-    List<Middleware<T>> middleware,
-    List<ViewMiddleware<T>> viewMiddleware,
-    List<EffectMiddleware<T>> effectMiddleware,
-    List<AdapterMiddleware<T>> adapterMiddleware,
+    List<Middleware<T>>? middleware,
+    List<ViewMiddleware<T>>? viewMiddleware,
+    List<EffectMiddleware<T>>? effectMiddleware,
+    List<AdapterMiddleware<T>>? adapterMiddleware,
   });
 
   void append({
-    List<Middleware<T>> middleware,
-    List<ViewMiddleware<T>> viewMiddleware,
-    List<EffectMiddleware<T>> effectMiddleware,
-    List<AdapterMiddleware<T>> adapterMiddleware,
+    List<Middleware<T>>? middleware,
+    List<ViewMiddleware<T>>? viewMiddleware,
+    List<EffectMiddleware<T>>? effectMiddleware,
+    List<AdapterMiddleware<T>>? adapterMiddleware,
   });
 }
 
@@ -152,16 +152,16 @@ abstract class Enhancer<T> {
 
 abstract class ExtraData {
   /// Get|Set extra data in context if needed.
-  Map<String, Object> get extra;
+  Map<String, Object?> get extra;
 }
 
 /// Seen in view-part or adapter-part
 abstract class ViewService implements ExtraData {
   /// The way to build adapter which is configured in Dependencies.list
-  ListAdapter buildAdapter();
+  ListAdapter? buildAdapter();
 
   /// The way to build slot component which is configured in Dependencies.slots
-  Widget buildComponent(String name, {Widget defaultWidget});
+  Widget buildComponent(String name, {Widget? defaultWidget});
 
   /// Get BuildContext from the host-widget
   BuildContext get context;
@@ -173,7 +173,7 @@ abstract class ViewService implements ExtraData {
   /// Dispatch is enough. Use [Dispatch] instead of [broadcastEffect]
   /// [Dispatch] = [SelfEffect] | ([broadcastEffect] & [store.dispatch])
   @deprecated
-  void broadcastEffect(Action action, {bool excluded});
+  void broadcastEffect(Action action, {bool? excluded});
 }
 
 ///  Seen in effect-part
@@ -185,7 +185,7 @@ abstract class Context<T> extends AutoDispose implements ExtraData {
   dynamic dispatch(Action action);
 
   /// Get BuildContext from the host-widget
-  BuildContext get context;
+  BuildContext? get context;
 
   /// In general, we should not need this field.
   /// When we have to use this field, it means that we have encountered difficulties.
@@ -201,7 +201,7 @@ abstract class Context<T> extends AutoDispose implements ExtraData {
   ///    final TickerProvider tickerProvider = context.stfState;
   ///    AnimationController controller = AnimationController(vsync: tickerProvider);
   ///    context.dispatch(ActionCreator.createController(controller));
-  State get stfState;
+  State? get stfState;
 
   /// The way to build slot component which is configured in Dependencies.slots
   /// such as custom mask or dialog
@@ -211,7 +211,7 @@ abstract class Context<T> extends AutoDispose implements ExtraData {
   void broadcast(Action action);
 
   /// Broadcast in all component receivers;
-  void broadcastEffect(Action action, {bool excluded});
+  void broadcastEffect(Action action, {bool? excluded});
 
   /// add observable
   void Function() addObservable(Subscribe observable);
@@ -220,8 +220,8 @@ abstract class Context<T> extends AutoDispose implements ExtraData {
 
   /// listen on the changes of some parts of <T>.
   void Function() listen({
-    bool Function(T, T) isChanged,
-    void Function() onChange,
+    bool Function(T, T)? isChanged,
+    required void Function()? onChange,
   });
 }
 
@@ -236,32 +236,32 @@ abstract class ContextSys<T> extends Context<T> implements ViewService {
 
   Enhancer<dynamic> get enhancer;
 
-  DispatchBus get bus;
+  DispatchBus? get bus;
 }
 
 abstract class AbstractAdapterBuilder<T> {
-  ListAdapter buildAdapter(ContextSys<T> ctx);
+  ListAdapter? buildAdapter(ContextSys<T> ctx);
 }
 
 /// Representation of each dependency
-abstract class Dependent<T> implements AbstractAdapterBuilder<Object> {
-  Get<Object> subGetter(Get<T> getter);
+abstract class Dependent<T> implements AbstractAdapterBuilder<Object?> {
+  Get<Object?> subGetter(Get<T> getter);
 
-  SubReducer<T> createSubReducer();
+  SubReducer<T>? createSubReducer();
 
   Widget buildComponent(
-    Store<Object> store,
+    Store<Object?> store,
     Get<T> getter, {
-    @required DispatchBus bus,
-    @required Enhancer<Object> enhancer,
+    required DispatchBus? bus,
+    required Enhancer<Object?> enhancer,
   });
 
-  ContextSys<Object> createContext(
-    Store<Object> store,
+  ContextSys<Object?> createContext(
+    Store<Object?> store,
     BuildContext buildContext,
     Get<T> getState, {
-    @required DispatchBus bus,
-    @required Enhancer<Object> enhancer,
+    required DispatchBus bus,
+    required Enhancer<Object?> enhancer,
   });
 
   bool isComponent();
@@ -273,42 +273,43 @@ abstract class Dependent<T> implements AbstractAdapterBuilder<Object> {
 /// The logic is divided into two parts, Reducer & SideEffect.
 abstract class AbstractLogic<T> {
   /// To create a reducer<T>
-  Reducer<T> get reducer;
+  Reducer<T>? get reducer;
 
   /// To solve Reducer<Object> is neither a subtype nor a supertype of Reducer<T> issue.
   Object onReducer(Object state, Action action);
 
   /// To create each instance's side-effect-action-handler
-  Dispatch createEffectDispatch(ContextSys<T> ctx, Enhancer<Object> enhancer);
+  Dispatch createEffectDispatch(ContextSys<T> ctx, Enhancer<Object?> enhancer);
 
   /// To create each instance's side-effect-action-handler
-  Dispatch createNextDispatch(ContextSys<T> ctx, Enhancer<Object> enhancer);
+  Dispatch createNextDispatch(ContextSys<T> ctx, Enhancer<Object?> enhancer);
 
   /// To create each instance's dispatch
   /// Dispatch is the most important api for users which is provided by framework
   Dispatch createDispatch(
-    Dispatch effectDispatch,
+    Dispatch? effectDispatch,
     Dispatch nextDispatch,
     ContextSys<T> ctx,
   );
 
   /// To create each instance's context
   ContextSys<T> createContext(
-    Store<Object> store,
-    BuildContext buildContext,
+    Store<Object?> store,
+    BuildContext? buildContext,
     Get<T> getState, {
-    @required DispatchBus bus,
-    @required Enhancer<Object> enhancer,
+    void Function() markNeedsBuild,
+    required DispatchBus bus,
+    required Enhancer<Object?> enhancer,
   });
 
   /// To create each instance's key (for recycle) if needed
   Object key(T state);
 
   /// Find a dependent by name
-  Dependent<T> slot(String name);
+  Dependent<T>? slot(String name);
 
   /// Get a adapter-dependent
-  Dependent<T> adapterDep();
+  Dependent<T>? adapterDep();
 
   Type get propertyType;
 }
@@ -316,10 +317,10 @@ abstract class AbstractLogic<T> {
 abstract class AbstractComponent<T> implements AbstractLogic<T> {
   /// How to build component instance
   Widget buildComponent(
-    Store<Object> store,
+    Store<Object?> store,
     Get<T> getter, {
-    @required DispatchBus bus,
-    @required Enhancer<Object> enhancer,
+    required DispatchBus? bus,
+    required Enhancer<Object?> enhancer,
   });
 }
 
@@ -346,9 +347,9 @@ abstract class DispatchBus {
 
   void detach();
 
-  void dispatch(Action action, {Dispatch excluded});
+  void dispatch(Action action, {Dispatch? excluded});
 
-  void broadcast(Action action, {DispatchBus excluded});
+  void broadcast(Action action, {DispatchBus? excluded});
 
-  void Function() registerReceiver(Dispatch dispatch);
+  void Function()? registerReceiver(Dispatch? dispatch);
 }

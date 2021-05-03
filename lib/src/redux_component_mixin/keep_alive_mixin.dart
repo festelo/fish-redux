@@ -22,7 +22,7 @@ class _KeepAliveStfState<T> extends ComponentState<T>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return ctx.buildWidget();
+    return ctx!.buildWidget();
   }
 }
 

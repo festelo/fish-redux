@@ -8,11 +8,11 @@ ApplyLikeEnhancer logAOP(String tag) {
   return isDebug()
       ? (dynamic Function(List<dynamic>) functor) {
           return (List<dynamic> positionalArguments,
-              [Map<Symbol, dynamic> namedArguments]) {
+              [Map<Symbol, dynamic>? namedArguments]) {
             print('$tag input: $positionalArguments');
             final Object result = functor(positionalArguments);
             if (result is Future) {
-              result.then((Object r) {
+              result.then<dynamic>((dynamic r) {
                 print('$tag output <Future>: $r');
                 return r;
               });

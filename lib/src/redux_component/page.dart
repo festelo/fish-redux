@@ -22,31 +22,31 @@ abstract class Page<T, P> extends Component<T> {
 
   final InitState<T, P> _initState;
 
-  final Enhancer<T> enhancer;
+  final Enhancer<T?> enhancer;
 
   /// connect with other stores
-  final List<StoreUpdater<T>> _storeUpdaters = <StoreUpdater<T>>[];
+  final List<StoreUpdater<T?>> _storeUpdaters = <StoreUpdater<T?>>[];
 
   Page({
-    @required InitState<T, P> initState,
-    @required ViewBuilder<T> view,
-    Reducer<T> reducer,
-    ReducerFilter<T> filter,
-    Effect<T> effect,
-    Dependencies<T> dependencies,
-    ShouldUpdate<T> shouldUpdate,
-    WidgetWrapper wrapper,
+    required InitState<T, P> initState,
+    required ViewBuilder<T?> view,
+    Reducer<T?>? reducer,
+    ReducerFilter<T?>? filter,
+    Effect<T?>? effect,
+    Dependencies<T>? dependencies,
+    ShouldUpdate<T?>? shouldUpdate,
+    WidgetWrapper? wrapper,
 
     /// implement [StateKey] in T instead of using key in Logic.
     /// class T implements StateKey {
     ///   Object _key = UniqueKey();
     ///   Object key() => _key;
     /// }
-    @deprecated Key Function(T) key,
-    List<Middleware<T>> middleware,
-    List<ViewMiddleware<T>> viewMiddleware,
-    List<EffectMiddleware<T>> effectMiddleware,
-    List<AdapterMiddleware<T>> adapterMiddleware,
+    @deprecated Key Function(T?)? key,
+    List<Middleware<T>>? middleware,
+    List<ViewMiddleware<T>>? viewMiddleware,
+    List<EffectMiddleware<T>>? effectMiddleware,
+    List<AdapterMiddleware<T>>? adapterMiddleware,
   })  : assert(initState != null),
         _initState = initState,
         enhancer = EnhancerDefault<T>(
@@ -72,15 +72,15 @@ abstract class Page<T, P> extends Component<T> {
         param: param,
       ));
 
-  Store<T> createStore(P param) => updateStore(createBatchStore<T>(
+  Store<T?> createStore(P param) => updateStore(createBatchStore<T>(
         _initState(param),
         reducer,
         storeEnhancer: enhancer.storeEnhance,
       ));
 
-  Store<T> updateStore(Store<T> store) => _storeUpdaters.fold(
+  Store<T?> updateStore(Store<T?> store) => _storeUpdaters.fold(
         store,
-        (Store<T> previousValue, StoreUpdater<T> element) =>
+        (Store<T?> previousValue, StoreUpdater<T?> element) =>
             element(previousValue),
       );
 
@@ -89,21 +89,21 @@ abstract class Page<T, P> extends Component<T> {
     Store<K> extraStore,
 
     /// To solve Reducer<Object> is neither a subtype nor a supertype of Reducer<T> issue.
-    Object Function(Object, K) update,
+    Object Function(Object?, K) update,
   ) =>
-      _storeUpdaters.add((Store<T> store) => connectStores<Object, K>(
+      _storeUpdaters.add((Store<T?> store) => connectStores<Object?, K>(
             store,
             extraStore,
             update,
-          ));
+          ) as Store<T?>);
 
   DispatchBus createPageBus() => DispatchBusDefault();
 
   void unshift({
-    List<Middleware<T>> middleware,
-    List<ViewMiddleware<T>> viewMiddleware,
-    List<EffectMiddleware<T>> effectMiddleware,
-    List<AdapterMiddleware<T>> adapterMiddleware,
+    List<Middleware<T?>>? middleware,
+    List<ViewMiddleware<T?>>? viewMiddleware,
+    List<EffectMiddleware<T?>>? effectMiddleware,
+    List<AdapterMiddleware<T?>>? adapterMiddleware,
   }) {
     enhancer.unshift(
       middleware: middleware,
@@ -114,10 +114,10 @@ abstract class Page<T, P> extends Component<T> {
   }
 
   void append({
-    List<Middleware<T>> middleware,
-    List<ViewMiddleware<T>> viewMiddleware,
-    List<EffectMiddleware<T>> effectMiddleware,
-    List<AdapterMiddleware<T>> adapterMiddleware,
+    List<Middleware<T?>>? middleware,
+    List<ViewMiddleware<T?>>? viewMiddleware,
+    List<EffectMiddleware<T?>>? effectMiddleware,
+    List<AdapterMiddleware<T?>>? adapterMiddleware,
   }) {
     enhancer.append(
       middleware: middleware,
@@ -133,9 +133,9 @@ class _PageWidget<T, P> extends StatefulWidget {
   final P param;
 
   const _PageWidget({
-    Key key,
-    @required this.page,
-    @required this.param,
+    Key? key,
+    required this.page,
+    required this.param,
   }) : super(key: key);
 
   @override
@@ -143,8 +143,8 @@ class _PageWidget<T, P> extends StatefulWidget {
 }
 
 class _PageState<T, P> extends State<_PageWidget<T, P>> {
-  Store<T> _store;
-  DispatchBus _pageBus;
+  Store<T?>? _store;
+  DispatchBus? _pageBus;
 
   final Map<String, Object> extra = <String, Object>{};
 
@@ -160,7 +160,7 @@ class _PageState<T, P> extends State<_PageWidget<T, P>> {
     super.didChangeDependencies();
 
     /// Register inter-page broadcast
-    _pageBus.attach(widget.page.appBus);
+    _pageBus!.attach(widget.page.appBus);
   }
 
   @override
@@ -173,7 +173,7 @@ class _PageState<T, P> extends State<_PageWidget<T, P>> {
 
     return widget.page.buildComponent(
       _store,
-      _store.getState,
+      _store!.getState,
       bus: _pageBus,
       enhancer: widget.page.enhancer,
     );
@@ -181,8 +181,8 @@ class _PageState<T, P> extends State<_PageWidget<T, P>> {
 
   @override
   void dispose() {
-    _pageBus.detach();
-    _store.teardown();
+    _pageBus!.detach();
+    _store!.teardown!();
     super.dispose();
   }
 }
@@ -195,16 +195,16 @@ class PageProvider extends InheritedWidget {
   final Map<String, Object> extra;
 
   const PageProvider({
-    @required this.store,
-    @required this.extra,
-    @required Widget child,
-    Key key,
+    required this.store,
+    required this.extra,
+    required Widget child,
+    Key? key,
   })  : assert(store != null),
         assert(child != null),
         super(child: child, key: key);
 
-  static PageProvider tryOf(BuildContext context) {
-    final PageProvider provider =
+  static PageProvider? tryOf(BuildContext context) {
+    final PageProvider? provider =
         context.dependOnInheritedWidgetOfExactType<PageProvider>();
     return provider;
   }

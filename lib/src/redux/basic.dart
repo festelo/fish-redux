@@ -51,19 +51,19 @@ typedef Composable<T> = T Function(T next);
 typedef Get<R> = R Function();
 
 /// Definition of the standard Middleware.
-typedef Middleware<T> = Composable<Dispatch> Function({
-  Dispatch dispatch,
-  Get<T> getState,
+typedef Middleware<T> = Composable<Dispatch?> Function({
+  Dispatch? dispatch,
+  Get<T>? getState,
 });
 
 /// Definition of the standard Store.
 class Store<T> {
-  Get<T> getState;
-  Dispatch dispatch;
-  Subscribe subscribe;
-  Observable<T> observable;
-  ReplaceReducer<T> replaceReducer;
-  Future<dynamic> Function() teardown;
+  Get<T>? getState;
+  Dispatch? dispatch;
+  Subscribe? subscribe;
+  Observable<T>? observable;
+  ReplaceReducer<T>? replaceReducer;
+  Future<dynamic> Function()? teardown;
 }
 
 /// Create a store definition

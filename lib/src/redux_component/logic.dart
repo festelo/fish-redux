@@ -12,34 +12,34 @@ import 'helper.dart' as helper;
 /// 3. Dependencies
 /// 4. Key
 abstract class Logic<T> implements AbstractLogic<T> {
-  final Reducer<T> _reducer;
-  final ReducerFilter<T> _filter;
-  final Effect<T> _effect;
-  final Dependencies<T> _dependencies;
-  final Object Function(T state) _key;
+  final Reducer<T>? _reducer;
+  final ReducerFilter<T>? _filter;
+  final Effect<T>? _effect;
+  final Dependencies<T>? _dependencies;
+  final Object Function(T state)? _key;
 
   /// for extends
-  Reducer<T> get protectedReducer => _reducer;
-  ReducerFilter<T> get protectedFilter => _filter;
-  Effect<T> get protectedEffect => _effect;
-  Dependencies<T> get protectedDependencies => _dependencies;
-  Object Function(T state) get protectedKey => _key;
+  Reducer<T>? get protectedReducer => _reducer;
+  ReducerFilter<T>? get protectedFilter => _filter;
+  Effect<T>? get protectedEffect => _effect;
+  Dependencies<T>? get protectedDependencies => _dependencies;
+  Object Function(T state)? get protectedKey => _key;
 
   /// Used as function cache to improve operational efficiency
-  final Map<String, Object> _resultCache = <String, Object>{};
+  final Map<String, Object?> _resultCache = <String, Object?>{};
 
   Logic({
-    Reducer<T> reducer,
-    Dependencies<T> dependencies,
-    ReducerFilter<T> filter,
-    Effect<T> effect,
+    Reducer<T>? reducer,
+    Dependencies<T>? dependencies,
+    ReducerFilter<T>? filter,
+    Effect<T>? effect,
 
     /// implement [StateKey] in T instead of using key in Logic.
     /// class T implements StateKey {
     ///   Object _key = UniqueKey();
     ///   Object key() => _key;
     /// }
-    @deprecated Object Function(T state) key,
+    @deprecated Object Function(T state)? key,
   })  : _reducer = reducer,
         _filter = filter,
         _effect = effect,
@@ -66,23 +66,23 @@ abstract class Logic<T> implements AbstractLogic<T> {
   /// _resultCache['key'] = null;
   /// then
   /// _resultCache.containsKey('key') will be true;
-  R cache<R>(String key, Get<R> getter) => _resultCache.containsKey(key)
-      ? _resultCache[key]
+  R? cache<R>(String key, Get<R> getter) => _resultCache.containsKey(key)
+      ? _resultCache[key] as R?
       : (_resultCache[key] = getter());
 
   @override
-  Reducer<T> get reducer => helper.filterReducer(
+  Reducer<T>? get reducer => helper.filterReducer(
       combineReducers<T>(
-          <Reducer<T>>[protectedReducer, protectedDependencies?.reducer]),
+          <Reducer<T>?>[protectedReducer, protectedDependencies?.reducer]),
       protectedFilter);
 
   @override
   Object onReducer(Object state, Action action) =>
-      cache<Reducer<T>>('onReducer', () => reducer)?.call(state, action) ??
+      cache<Reducer<T>?>('onReducer', () => reducer)?.call(state as T, action) ??
       state;
 
   @override
-  Dispatch createEffectDispatch(ContextSys<T> ctx, Enhancer<Object> enhancer) {
+  Dispatch createEffectDispatch(ContextSys<T> ctx, Enhancer<Object?> enhancer) {
     return helper.createEffectDispatch<T>(
 
         /// enhance userEffect
@@ -95,12 +95,12 @@ abstract class Logic<T> implements AbstractLogic<T> {
   }
 
   @override
-  Dispatch createNextDispatch(ContextSys<T> ctx, Enhancer<Object> enhancer) =>
+  Dispatch createNextDispatch(ContextSys<T> ctx, Enhancer<Object?> enhancer) =>
       helper.createNextDispatch<T>(ctx);
 
   @override
   Dispatch createDispatch(
-    Dispatch effectDispatch,
+    Dispatch? effectDispatch,
     Dispatch nextDispatch,
     Context<T> ctx,
   ) =>
@@ -110,8 +110,8 @@ abstract class Logic<T> implements AbstractLogic<T> {
   Object key(T state) => _key?.call(state) ?? ValueKey<Type>(runtimeType);
 
   @override
-  Dependent<T> slot(String type) => protectedDependencies?.slot(type);
+  Dependent<T>? slot(String type) => protectedDependencies?.slot(type);
 
   @override
-  Dependent<T> adapterDep() => protectedDependencies?.adapter;
+  Dependent<T>? adapterDep() => protectedDependencies?.adapter;
 }
